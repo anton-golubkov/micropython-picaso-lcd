@@ -1,8 +1,6 @@
 4D Systems PICASO Display Library for Micropython
 =================================
 
-[![Build Status](https://travis-ci.org/cfaessler/python-picaso-lcd.png)](https://travis-ci.org/cfaessler/python-picaso-lcd)
-
 This is a Python library for PICASO based serial LCDs by 4D Systems designrd for using with  micropython.
 
 Based on library [cfaessler/python-picaso-lcd](https://github.com/cfaessler/python-picaso-lcd).
