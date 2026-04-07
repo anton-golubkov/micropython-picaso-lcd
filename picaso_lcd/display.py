@@ -150,8 +150,7 @@ class Display(object):
     def set_contrast(self, contrast):
         """Set the contrast. Note that this has no effect on most LCDs."""
         val = self.write_cmd([0xFF9C, contrast], 2)
-        dbyte = map(ord, val)
-        self._contrast = utils.dbyte_to_int(*dbyte)
+        self._contrast = val[1] << 8 + val[0]
 
     def off(self):
         self.set_contrast(0)
