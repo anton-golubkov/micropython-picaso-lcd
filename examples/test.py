@@ -15,11 +15,12 @@ def demo_sine(disp, color):
         disp.gfx_line(i - 1, int(f(i - 1)), i, int(f(i)), color)
 
 
-def demo_text(disp, color):
+def demo_text(disp, color, rgb_color):
     disp.text.set_size(2)
     disp.text.set_fg_color(color)
     disp.text.put_string("Whole Lotta Rosie\n")
     disp.text.set_size(1)
+    disp.text.put_string(f"{rgb_color} - {color:016b}\n")
     disp.text.put_string(
         "Wanna tell you a story\n'Bout a woman I know\nWhen it comes to lovin'"
         "\nOh, she steals the show\nShe ain't exactly pretty\nShe ain't exactly small\n"
@@ -41,25 +42,46 @@ disp = display.Display(uart)
 time.sleep(3)
 disp.cls()
 disp.set_orientation(1)
+disp.set_contrast(15)
+disp.set_background_color(colors.WHITE)
+
+
+colors_list = [
+    (255, 0, 0),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 255, 0),
+    (255, 0, 255),
+    (0, 255, 255),
+    (255, 255, 255),
+]
+cur_color = 0
 
 while True:
-    demo_text(disp, colors.MISTYROSE)
+    demo_text(
+        disp, colors.to_16bit_color(colors_list[cur_color]), colors_list[cur_color]
+    )
     time.sleep(3)
     disp.cls()
-    demo_sine(disp, colors.MEDIUMORCHID)
 
-    # disp.off()
-    # time.sleep(2)
-    # disp.on()
+    demo_sine(disp, colors.to_16bit_color(colors_list[cur_color]))
+    time.sleep(2)
 
-    # blue = disp.to_16bit_color(0, 0, 255)
-    # red = disp.to_16bit_color(255, 0, 0)
-    # green = disp.to_16bit_color(0, 255, 0)
-    # disp.cls()
-    #
-    # disp.gfx_circle(100, 100, 10, Colors.ALICEBLUE, filled=True)
-    # disp.gfx_circle(200, 100, 10, Colors.ALICEBLUE, filled=True)
-    # disp.gfx_polyline([(120, 100), (130, 110), (140, 115), (150, 115), (160, 110), (170, 100)], Colors.BLUE)
-    #
-    # disp.gfx_rect(200, 120, 300, 200, Colors.DARKBLUE, filled=True)
+    disp.set_contrast(0)  # off
+    time.sleep(2)
+    disp.set_contrast(1)  # on
+    time.sleep(2)
+
     disp.cls()
+    disp.gfx_circle(100, 100, 10, colors.ALICEBLUE, filled=True)
+    disp.gfx_circle(200, 100, 10, colors.ALICEBLUE, filled=True)
+    disp.gfx_polyline(
+        [(120, 100), (130, 110), (140, 115), (150, 115), (160, 110), (170, 100)],
+        colors.BLUE,
+    )
+    disp.gfx_rect(200, 120, 300, 200, colors.DARKBLUE, filled=True)
+    time.sleep(2)
+    disp.cls()
+
+    cur_color += 1
+    cur_color = cur_color % len(colors_list)

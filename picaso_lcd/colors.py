@@ -1,3 +1,5 @@
+import math
+
 ALICEBLUE = 0xF7DF
 ANTIQUEWHITE = 0xFF5A
 AQUA = 0x07FF
@@ -138,3 +140,13 @@ WHITE = 0xFFFF
 WHITESMOKE = 0xF7BE
 YELLOW = 0xFFE0
 YELLOWGREEN = 0x9E66
+
+
+
+def to_16bit_color(color):
+    # 16 bit color binary format rrrrrggggggbbbbb
+    r16 = math.floor(color[0] / 8) << 11
+    g16 = math.floor(color[1] / 4) << 5
+    b16 = math.floor(color[2] / 8) << 0
+    color16 = r16 + g16 + b16
+    return color16
