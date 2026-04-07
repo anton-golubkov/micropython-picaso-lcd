@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
 """
 This module contains different utility functions, e.g. for handling of binary
 data or colors.
 """
-from __future__ import print_function, division, absolute_import, unicode_literals
 
 
 def int_to_dbyte(value):

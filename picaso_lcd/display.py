@@ -1,40 +1,25 @@
-# -*- coding: utf-8 -*-
 """
 This module contains all necessary code to control the LCD display. All the
 classes named ``DisplayFOO`` can also be accessed via a :class:`Display`
 instance at ``display.foo``.
 """
-from __future__ import print_function, division, absolute_import, unicode_literals
 
-import serial
 from . import utils
 from .constants import ACK
 from .exceptions import PicasoError, CommunicationError
 
 
-# TODO introduce logging
-
 class Display(object):
     """This class represents a 4D Systems serial LCD. It's the main class of
     this project."""
 
-    def __init__(self, port, baudrate=9600, read_timeout=10, write_timeout=10):
+    def __init__(self, uart):
         """
-        :param port: serial port to which the display is connected
-        :type port: str or unicode
-        :param baudrate: default 9600 in SPE2 rev 1.1
-        :type baudrate: int
-        :param read_timeout: Serial read timeout. This may be ``None``
-            (blocking), ``0`` (non-blocking) or an integer > 0 (seconds).
-        :type read_timeout: int or None
-        :param write_timeout: Serial write timeout. This may be ``None``
-            (blocking), ``0`` (non-blocking) or an integer > 0 (seconds).
-        :type write_timeout: int or None
+        :param uart: machine.UART object, baudrat should be set to 9600
         :rtype: Display instance
 
         """
-        self._ser = serial.Serial(port, baudrate=baudrate, stopbits=1,
-                timeout=read_timeout, writeTimeout=write_timeout)
+        self._ser = uart
         self._contrast = 15
 
         # Initialize subsystems
@@ -64,8 +49,8 @@ class Display(object):
         """
         for c in cmd:
             high_byte, low_byte = utils.int_to_dbyte(c)
-            self._ser.write(chr(high_byte))
-            self._ser.write(chr(low_byte))
+            self._ser.write(high_byte.to_bytes(1))
+            self._ser.write(low_byte.to_bytes(1))
         return self._get_ack(return_bytes)
 
     def write_raw_cmd(self, cmd, return_bytes=0):
@@ -81,7 +66,7 @@ class Display(object):
 
         """
         for c in cmd:
-            self._ser.write(chr(c))
+            self._ser.write(c.to_bytes(1))
         return self._get_ack(return_bytes)
 
     def _get_ack(self, return_bytes=0):
@@ -95,28 +80,29 @@ class Display(object):
         :rtype: list or none
 
         """
-        # First return value must be an ACK byte (0x06).
-        ack = self._ser.read()
-        if not ack:
-            raise CommunicationError('Read timeout reached.')
-        if ord(ack) != ACK:
-            msg = 'Instead of an ACK byte, "{!r}" was returned.'.format(ord(ack))
-            print(msg)
-            raise PicasoError(msg)
 
         # If applicable, fetch response values
         values = [] if return_bytes else None
-        for i in xrange(return_bytes):
-            val = ord(self._ser.read())
-            print('Return byte: {0}'.format(val))
+
+        # First return value must be an ACK byte (0x06).
+        ack_byte = self._ser.read(1)
+
+        if ack_byte is None:
+            raise CommunicationError("Read timeout reached.")
+        if int.from_bytes(ack_byte) != ACK:
+            msg = f"Instead of an ACK byte, '{ack_byte}' was returned."
+            raise PicasoError(msg)
+
+        for i in range(return_bytes):
+            val = int.from_bytes(self._ser.read(1))
             values.append(val)
 
         return values
 
     def gfx_rect(self, x1, y1, x2, y2, color, filled=False):
-        cmd = 0xffc5
+        cmd = 0xFFC5
         if filled:
-            cmd = 0xffc4
+            cmd = 0xFFC4
         return self.write_cmd([cmd, x1, y1, x2, y2, color])
 
     def gfx_triangle(self, vertices, filled=False):
@@ -132,7 +118,7 @@ class Display(object):
         if filled:
             cmd = 0x0014
         size = len(lines)
-        print(size)
+
         cmd_list = [cmd, size]
         for point in lines:
             x, y = point
@@ -147,26 +133,23 @@ class Display(object):
         self.gfx_ellipse(x, y, rad, rad, color, filled=filled)
 
     def gfx_ellipse(self, x, y, xrad, yrad, color, filled=False):
-        cmd = 0xffb2
+        cmd = 0xFFB2
         if filled:
-            cmd = 0xffb1
+            cmd = 0xFFB1
         self.write_cmd([cmd, x, y, xrad, yrad, color])
 
     def gfx_line(self, x1, y1, x2, y2, color):
-        self.write_cmd([0xffc8, x1, y1, x2, y2, color])
+        self.write_cmd([0xFFC8, x1, y1, x2, y2, color])
 
     def cls(self):
-        self.write_cmd([0xffcd])
-
-
+        self.write_cmd([0xFFCD])
 
     def set_background_color(self, color):
-        self.write_cmd([0xffa4, color], 2)
+        self.write_cmd([0xFFA4, color], 2)
 
     def set_contrast(self, contrast):
         """Set the contrast. Note that this has no effect on most LCDs."""
-        val = self.write_cmd([0xff9c, contrast], 2)
-        print('turning off, contrast was: {0}'.format(val))
+        val = self.write_cmd([0xFF9C, contrast], 2)
         dbyte = map(ord, val)
         self._contrast = utils.dbyte_to_int(*dbyte)
 
@@ -174,7 +157,6 @@ class Display(object):
         self.set_contrast(0)
 
     def on(self):
-        print('contrast is: {0}'.format(self._contrast))
         self.set_contrast(self._contrast)
 
     def set_orientation(self, value):
@@ -186,16 +168,19 @@ class Display(object):
 
         :returns: previous orientation
         """
-        response = self.write_cmd([0xff9e, value], 2)
-        return response[0]
+        response = self.write_cmd([0xFF9E, value], 2)
+        if response:
+            return response[0]
 
     def get_display_size(self):
-        x_dbyte = self.write_cmd([0xffa6, 0], 2)
-        y_dbyte = self.write_cmd([0xffa6, 1], 2)
-
-        width = utils.dbyte_to_int(*x_dbyte)+1
-        height = utils.dbyte_to_int(*y_dbyte)+1
-        return width, height
+        x_dbyte = self.write_cmd([0xFFA6, 0], 2)
+        y_dbyte = self.write_cmd([0xFFA6, 1], 2)
+        if x_dbyte and y_dbyte:
+            width = utils.dbyte_to_int(*x_dbyte) + 1
+            height = utils.dbyte_to_int(*y_dbyte) + 1
+            return width, height
+        else:
+            raise CommunicationError("Read timeout reached.")
 
     def set_baudrate(self, index):
         self.write_cmd([0x0026, index])
@@ -232,7 +217,7 @@ class DisplayText(object):
         :returns: None
 
         """
-        self.d.write_cmd([0xffe9, line, column])
+        self.d.write_cmd([0xFFE9, line, column])
 
     def put_character(self, char):
         """
@@ -243,7 +228,7 @@ class DisplayText(object):
         :returns: None
 
         """
-        self.d.write_cmd([0xfffe, ord(char)])
+        self.d.write_cmd([0xFFFE, ord(char)])
 
     def put_string(self, string):
         """
@@ -256,7 +241,7 @@ class DisplayText(object):
         """
         # Validate input
         if len(string) > 511:
-            raise ValueError('Max string length is 511 chars')
+            raise ValueError("Max string length is 511 chars")
 
         # Build and send command
         cmd = [0x00, 0x18]
@@ -266,9 +251,12 @@ class DisplayText(object):
         response = self.d.write_raw_cmd(cmd, 2)
 
         # Verify return values
-        length_written = utils.dbyte_to_int(*response)
-        assert length_written == len(string), \
-                'Length of string does not match length of original string'
+        if response:
+            length_written = utils.dbyte_to_int(*response)
+            if length_written != len(string):
+                raise CommunicationError(
+                    f"Length of string does not match length of original string {len(string)} {length_written}"
+                )
 
     def get_character_width(self, character):
         """
@@ -289,7 +277,7 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_raw_cmd([0x00, 0x1e, ord(character)], 2)
+        response = self.d.write_raw_cmd([0x00, 0x1E, ord(character)], 2)
         return utils.dbyte_to_int(*response)
 
     def get_character_height(self, character):
@@ -312,7 +300,7 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_raw_cmd([0x00, 0x1d, ord(character)], 2)
+        response = self.d.write_raw_cmd([0x00, 0x1D, ord(character)], 2)
         return utils.dbyte_to_int(*response)
 
     def set_fg_color(self, color):
@@ -328,8 +316,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffe7, color], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFE7, color], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_bg_color(self, color):
         """
@@ -344,8 +333,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffe6, color], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFE6, color], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_font(self, font):
         """
@@ -363,8 +353,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffe5, font], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFE5, font], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_width(self, multiplier):
         """
@@ -379,8 +370,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffe4, multiplier], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFE4, multiplier], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_height(self, multiplier):
         """
@@ -395,8 +387,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffe3, multiplier], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFE3, multiplier], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_size(self, multiplier):
         """
@@ -428,8 +421,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffe2, pixelcount], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFE2, pixelcount], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_y_gap(self, pixelcount):
         """
@@ -450,8 +444,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffe1, pixelcount], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFE1, pixelcount], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_gap(self, pixelcount):
         """
@@ -482,8 +477,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffde, mode], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFDE, mode], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_inverse(self, mode):
         """
@@ -498,8 +494,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffdc, mode], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFDC, mode], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_italic(self, mode):
         """
@@ -514,8 +511,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffdd, mode], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFDD, mode], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_opacity(self, mode):
         """
@@ -531,8 +529,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffdf, mode], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFDF, mode], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_underline(self, mode):
         """
@@ -551,8 +550,9 @@ class DisplayText(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xffdb, mode], 2)
-        return utils.dbyte_to_int(*response)
+        response = self.d.write_cmd([0xFFDB, mode], 2)
+        if response:
+            return utils.dbyte_to_int(*response)
 
     def set_attributes(self, bold=False, italic=False, inverse=False, underlined=False):
         """
@@ -596,14 +596,15 @@ class DisplayText(object):
         if underlined is True:
             attributes |= UNDERLINED
 
-        response = self.d.write_cmd([0xffda, attributes], 2)
-        prev_attributes = utils.dbyte_to_int(*response)
-        return {
-            'bold': bool(prev_attributes & BOLD),
-            'italic': bool(prev_attributes & ITALIC),
-            'inverse': bool(prev_attributes & INVERSE),
-            'underlined': bool(prev_attributes & UNDERLINED),
-        }
+        response = self.d.write_cmd([0xFFDA, attributes], 2)
+        if response:
+            prev_attributes = utils.dbyte_to_int(*response)
+            return {
+                "bold": bool(prev_attributes & BOLD),
+                "italic": bool(prev_attributes & ITALIC),
+                "inverse": bool(prev_attributes & INVERSE),
+                "underlined": bool(prev_attributes & UNDERLINED),
+            }
 
 
 class DisplayTouch(object):
@@ -636,7 +637,7 @@ class DisplayTouch(object):
         :type column: int
 
         """
-        self.d.write_cmd([0xff39, line, column])
+        self.d.write_cmd([0xFF39, line, column])
 
     def set_mode(self, mode):
         """
@@ -647,7 +648,7 @@ class DisplayTouch(object):
         mode = 2: This will reset the current active region to default which is
         the full screen area.
 
-        Note: Touch Screen task runs in the background and disabling it 
+        Note: Touch Screen task runs in the background and disabling it
         when not in use will free up extra resources for 4DGL CPU cycles.
 
         :param mode: The touch mode (0, 1 or 2). See method docstring for more
@@ -655,7 +656,7 @@ class DisplayTouch(object):
         :type mode: int
 
         """
-        self.d.write_cmd([0xff39, mode])
+        self.d.write_cmd([0xFF39, mode])
 
     def get_status(self, mode):
         """
@@ -685,5 +686,5 @@ class DisplayTouch(object):
         :rtype: int
 
         """
-        response = self.d.write_cmd([0xff37, mode], 2)
+        response = self.d.write_cmd([0xFF37, mode], 2)
         return utils.dbyte_to_int(*response)

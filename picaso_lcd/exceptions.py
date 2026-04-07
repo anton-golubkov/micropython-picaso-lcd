@@ -1,8 +1,6 @@
-# -*- coding: utf-8 -*-
 """
 Custom exceptions used by the library.
 """
-from __future__ import print_function, division, absolute_import, unicode_literals
 
 
 class PicasoError(RuntimeError):
