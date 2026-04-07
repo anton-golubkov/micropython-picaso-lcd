@@ -218,6 +218,22 @@ class DisplayText(object):
         """
         self.d.write_cmd([0xFFE9, line, column])
 
+    def move_origin(self, x, y):
+        """
+        Move text coordinates to specified position.
+
+        The Move Origin command moves the origin to a new position, which is suitable for specifying the location for both
+        graphics and text.
+
+        :param x: x coordinate (0..n)
+        :type x: int
+        :param y: y coordinate (0..n)
+        :type y: int
+        :returns: None
+
+        """
+        self.d.write_cmd([0xFFCC, x, y])
+
     def put_character(self, char):
         """
         Write a single character to the display.

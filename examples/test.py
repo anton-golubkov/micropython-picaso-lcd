@@ -33,6 +33,13 @@ def demo_text(disp, color, rgb_color):
     )
 
 
+def demo_text_pos(disp, x, y, color):
+    disp.text.set_size(1)
+    disp.text.set_fg_color(color)
+    disp.text.move_origin(x, y)
+    disp.text.put_string(f"({x},{y})")
+
+
 # If read timeout is it may cause errors
 uart = UART(1, 9600, rx=19, tx=21)
 uart.init(9600, bits=8, parity=None, stop=1, timeout=1000)
@@ -62,6 +69,13 @@ while True:
         disp, colors.to_16bit_color(colors_list[cur_color]), colors_list[cur_color]
     )
     time.sleep(3)
+    disp.cls()
+
+    demo_text_pos(disp, 10, 50, colors.to_16bit_color(colors_list[cur_color]))
+    demo_text_pos(disp, 100, 50, colors.to_16bit_color(colors_list[cur_color]))
+    demo_text_pos(disp, 10, 100, colors.to_16bit_color(colors_list[cur_color]))
+    demo_text_pos(disp, 100, 100, colors.to_16bit_color(colors_list[cur_color]))
+    time.sleep(2)
     disp.cls()
 
     demo_sine(disp, colors.to_16bit_color(colors_list[cur_color]))
