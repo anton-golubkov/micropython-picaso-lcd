@@ -52,6 +52,13 @@ disp.set_orientation(1)
 disp.set_contrast(15)
 disp.set_background_color(colors.WHITE)
 
+# 115200
+try:
+    disp.set_baudrate(13)
+except:
+    # With changed baudrate we will get errors in response
+    pass
+uart.init(115200, bits=8, parity=None, stop=1, timeout=1000)
 
 colors_list = [
     (255, 0, 0),
